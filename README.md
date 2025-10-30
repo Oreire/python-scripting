@@ -583,6 +583,3 @@ jobs:
 | Deploy | kubectl   | Controlled rollout                 | Validated YAML syntax             |
 | DAST   | OWASP ZAP | Runtime vulnerability testing      | Checks live endpoints post-deploy |
 
----
-
-Would you like me to add an **Azure Key Vault integration** next (so secrets like `SONAR_TOKEN` and `ACR credentials` are fetched automatically at runtime instead of being stored in GitHub)?
