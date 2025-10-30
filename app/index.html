@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Harbor & Keys — MENA Property Advisors</title>
+  <meta name="description" content="A clean, fast, single‑page real estate landing site inspired by premium MENA property advisors. Fully static and Nginx‑ready."/>
+  <style>
+    :root{
+      --bg:#0b1020;        /* deep blue */
+      --ink:#0d1224;       /* ink */
+      --card:#12182d;      /* card */
+      --muted:#9fb0d7;     /* muted text */
+      --brand:#8bc6ff;     /* accent */
+      --brand-2:#6ee7d2;   /* secondary accent */
+      --line:rgba(255,255,255,.08);
+      --white:#ffffff;
+    }
+    *{ box-sizing:border-box }
+    html,body{ height:100% }
+    body{
+      margin:0; font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;
+      color:var(--white); background: radial-gradient(1200px 800px at 80% -10%, rgba(139,198,255,.10), transparent 60%),
+                          radial-gradient(800px 500px at 10% 10%, rgba(110,231,210,.12), transparent 60%),
+                          var(--bg);
+      line-height:1.5;
+    }
+    a{ color:inherit; text-decoration:none }
+    .container{ width:min(1100px, 92vw); margin-inline:auto }
+    header{ position:sticky; top:0; backdrop-filter: blur(8px); background:rgba(11,16,32,.6); border-bottom:1px solid var(--line); z-index:50 }
+    .nav{ display:flex; align-items:center; justify-content:space-between; padding:14px 0 }
+    .brand{ display:flex; gap:10px; align-items:center; font-weight:700; letter-spacing:.3px }
+    .brand-mark{ width:34px; height:34px; border-radius:10px; background:linear-gradient(135deg,var(--brand),var(--brand-2)); display:grid; place-items:center; box-shadow:0 6px 18px rgba(139,198,255,.25) }
+    .brand-mark svg{ width:18px; height:18px; opacity:.95 }
+    nav ul{ list-style:none; display:flex; gap:22px; padding:0; margin:0 }
+    nav a{ color:var(--muted) }
+    nav a:hover{ color:var(--white) }
+    .btn{ display:inline-flex; align-items:center; gap:10px; padding:10px 14px; border:1px solid var(--line); border-radius:12px; background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01)); }
+    .btn:hover{ border-color:rgba(255,255,255,.18) }
+    .ghost{ background:transparent }
+​
+    /* hero */
+    .hero{ padding:64px 0 36px; position:relative; overflow:hidden }
+    .hero-grid{ display:grid; grid-template-columns: 1.1fr .9fr; gap:36px; align-items:center }
+    .eyebrow{ color:var(--brand); font-weight:600; letter-spacing:.3px; text-transform:uppercase; font-size:12px }
+    h1{ font-size:clamp(28px, 4.2vw, 44px); line-height:1.1; margin:10px 0 14px }
+    .lead{ color:#c8d4f4; font-size:clamp(15px, 2.1vw, 18px) }
+    .hero-cards{ display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:16px }
+    .card{ background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02)); border:1px solid var(--line); border-radius:16px; padding:16px; }
+    .stat{ font-weight:700; font-size:26px }
+    .muted{ color:var(--muted) }
+​
+    /* search bar */
+    .search{ margin-top:22px; display:flex; gap:10px }
+    .search input{ flex:1; padding:12px 14px; border-radius:12px; border:1px solid var(--line); background:#0e1426; color:var(--white) }
+    .search button{ padding:12px 16px; border-radius:12px; border:1px solid var(--line); background:linear-gradient(135deg,var(--brand),var(--brand-2)); color:#002225; font-weight:700 }
+​
+    /* sections */
+    section{ padding:48px 0; border-top:1px solid var(--line) }
+    .sec-head{ display:flex; align-items:end; justify-content:space-between; gap:20px; margin-bottom:20px }
+    .sec-head h2{ margin:0; font-size:clamp(22px,3.4vw,32px) }
+​
+    /* services */
+    .grid-3{ display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:16px }
+    .service{ padding:18px; border:1px solid var(--line); border-radius:16px; background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.015)) }
+    .service h3{ margin:8px 0 6px; font-size:18px }
+    .chip{ display:inline-grid; place-items:center; width:34px; height:34px; border-radius:10px; background:linear-gradient(135deg,rgba(139,198,255,.18),rgba(110,231,210,.18)); border:1px solid var(--line) }
+​
+    /* listings */
+    .grid-4{ display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:16px }
+    .prop{ border:1px solid var(--line); border-radius:16px; overflow:hidden; background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)) }
+    .thumb{ aspect-ratio: 4/3; background: linear-gradient(135deg, #21315f, #1b274d); position:relative }
+    .thumb:before{ content:""; position:absolute; inset:0; background: repeating-linear-gradient(45deg, rgba(255,255,255,.05) 0 6px, transparent 6px 12px) }
+    .badge{ position:absolute; top:10px; left:10px; background:rgba(0,0,0,.45); border:1px solid var(--line); padding:6px 10px; border-radius:999px; font-size:12px }
+    .prop .body{ padding:14px }
+    .price{ font-weight:700 }
+​
+    /* testimonials */
+    .t-grid{ display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:16px }
+    .quote{ border:1px solid var(--line); border-radius:16px; padding:18px; background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)) }
+​
+    /* contact */
+    .contact{ display:grid; grid-template-columns:1fr 1fr; gap:24px }
+    form{ display:grid; gap:12px }
+    input, textarea{ width:100%; padding:12px 14px; border-radius:12px; border:1px solid var(--line); background:#0e1426; color:var(--white) }
+    textarea{ min-height:120px }
+    .disclaimer{ font-size:12px; color:var(--muted) }
+​
+    footer{ padding:28px 0 40px; border-top:1px solid var(--line); color:var(--muted) }
+​
+    /* responsive */
+    @media (max-width: 980px){
+      .hero-grid{ grid-template-columns:1fr }
+      .grid-3{ grid-template-columns:1fr 1fr }
+      .grid-4{ grid-template-columns:1fr 1fr }
+      .contact{ grid-template-columns:1fr }
+      nav ul{ display:none }
+      .mobile-nav-btn{ display:inline-flex }
+    }
+    @media (max-width: 640px){
+      .grid-3{ grid-template-columns:1fr }
+      .grid-4{ grid-template-columns:1fr }
+      .hero{ padding-top:46px }
+    }
+​
+    /* simple mobile drawer */
+    .drawer{ position:fixed; inset:0; background:rgba(0,0,0,.5); display:none }
+    .drawer.open{ display:block }
+    .sheet{ position:absolute; right:0; top:0; height:100%; width:min(85vw, 360px); background:#0e1426; border-left:1px solid var(--line); padding:20px }
+    .sheet a{ display:block; padding:12px 6px; color:var(--muted) }
+    .sheet a:hover{ color:var(--white) }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header>
+    <div class="container nav">
+      <a class="brand" href="#top" aria-label="Harbor & Keys home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 12h14"/><path d="M12 5v14"/>
+          </svg>
+        </span>
+        Harbor & Keys
+      </a>
+      <nav>
+        <button class="btn ghost mobile-nav-btn" aria-label="Open menu" onclick="openDrawer()" style="display:none">Menu</button>
+        <ul>
+          <li><a href="#services">Services</a></li>
+          <li><a href="#listings">Featured</a></li>
+          <li><a href="#about">About</a></li>
+          <li><a href="#contact">Contact</a></li>
+          <li><a class="btn" href="#contact">Book a valuation</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+​
+  <!-- Mobile Drawer -->
+  <div class="drawer" id="drawer" onclick="closeDrawer(event)">
+    <div class="sheet" onclick="event.stopPropagation()">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px">
+        <strong>Navigate</strong>
+        <button class="btn ghost" onclick="closeDrawer(event)">Close</button>
+      </div>
+      <a href="#services" onclick="closeDrawer(event)">Services</a>
+      <a href="#listings" onclick="closeDrawer(event)">Featured</a>
+      <a href="#about" onclick="closeDrawer(event)">About</a>
+      <a href="#contact" onclick="closeDrawer(event)">Contact</a>
+      <a class="btn" href="#contact" onclick="closeDrawer(event)">Book a valuation</a>
+    </div>
+  </div>
+​
+  <!-- Hero -->
+  <main id="top" class="hero">
+    <div class="container hero-grid">
+      <div>
+        <div class="eyebrow">MENA • Residential • Commercial</div>
+        <h1>Trusted property advisors for Dubai, Abu Dhabi & across the Gulf.</h1>
+        <p class="lead">Advising landlords, investors and occupiers on acquisitions, sales and lettings. Data‑led insights with boutique service—tailored to you.</p>
+        <form class="search" onsubmit="event.preventDefault(); document.getElementById('contact').scrollIntoView({behavior:'smooth'});">
+          <input aria-label="Search city, area or community" placeholder="Search city, area or community"/>
+          <button type="submit">Find Properties</button>
+        </form>
+        <div style="display:flex; gap:16px; margin-top:20px">
+          <div class="card"><div class="stat">18+ years</div><div class="muted">Local experience</div></div>
+          <div class="card"><div class="stat">AED 12bn</div><div class="muted">Transactions advised</div></div>
+        </div>
+      </div>
+      <div class="hero-cards">
+        <div class="card">
+          <div class="muted">Hot areas</div>
+          <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:10px">
+            <span class="btn ghost">Downtown Dubai</span>
+            <span class="btn ghost">JBR</span>
+            <span class="btn ghost">Abu Dhabi Corniche</span>
+            <span class="btn ghost">Saadiyat</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="muted">Services at a glance</div>
+          <ul style="margin:8px 0 0 18px; padding:0">
+            <li>Sales & Lettings</li>
+            <li>Property Management</li>
+            <li>Valuations & Advisory</li>
+            <li>International Desk</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </main>
+​
+  <!-- Services -->
+  <section id="services" class="container">
+    <div class="sec-head">
+      <h2>Advisory, management & marketing under one roof.</h2>
+      <a class="btn" href="#contact">Talk to an advisor</a>
+    </div>
+    <div class="grid-3">
+      <article class="service">
+        <span class="chip" aria-hidden="true">🏙️</span>
+        <h3>Residential Sales & Lettings</h3>
+        <p class="muted">From studio apartments to waterfront villas—pricing strategy, staging, and end‑to‑end conveyancing support.</p>
+      </article>
+      <article class="service">
+        <span class="chip" aria-hidden="true">📈</span>
+        <h3>Valuations & Research</h3>
+        <p class="muted">RICS‑style reporting, rent reviews, yield analysis and forward‑funding feasibility.</p>
+      </article>
+      <article class="service">
+        <span class="chip" aria-hidden="true">🛠️</span>
+        <h3>Property Management</h3>
+        <p class="muted">Tenant screening, maintenance coordination, escrow handling and compliant documentation.</p>
+      </article>
+    </div>
+  </section>
+​
+  <!-- Featured Listings -->
+  <section id="listings" class="container">
+    <div class="sec-head">
+      <h2>Featured opportunities</h2>
+      <a class="btn ghost" href="#">View all</a>
+    </div>
+    <div class="grid-4">
+      <!-- Cards use CSS placeholders for images so the page remains 100% static without external assets -->
+      <article class="prop">
+        <div class="thumb"><span class="badge">Dubai • Downtown</span></div>
+        <div class="body">
+          <div class="muted">2‑bed • 1,280 sq ft • High floor</div>
+          <div class="price">AED 3,250,000</div>
+        </div>
+      </article>
+      <article class="prop">
+        <div class="thumb"><span class="badge">Abu Dhabi • Saadiyat</span></div>
+        <div class="body">
+          <div class="muted">Villa • 4‑bed • Private pool</div>
+          <div class="price">AED 9,800,000</div>
+        </div>
+      </article>
+      <article class="prop">
+        <div class="thumb"><span class="badge">Dubai • JBR</span></div>
+        <div class="body">
+          <div class="muted">Sea view • Furnished • 1‑bed</div>
+          <div class="price">AED 1,950,000</div>
+        </div>
+      </article>
+      <article class="prop">
+        <div class="thumb"><span class="badge">Dubai • Business Bay</span></div>
+        <div class="body">
+          <div class="muted">Office • 2,300 sq ft • Shell & core</div>
+          <div class="price">AED 6,200,000</div>
+        </div>
+      </article>
+    </div>
+  </section>
+​
+  <!-- About -->
+  <section id="about" class="container">
+    <div class="sec-head">
+      <h2>People‑first, data‑driven.</h2>
+      <div class="muted">Independent advisors with global reach.</div>
+    </div>
+    <div class="grid-3">
+      <div class="card">
+        <strong>Local expertise</strong>
+        <p class="muted">On‑ground teams across key communities help you understand pricing, absorption and time‑to‑let in minutes.</p>
+      </div>
+      <div class="card">
+        <strong>Insight you can use</strong>
+        <p class="muted">Quarterly dashboards summarise trends on yields, off‑plan launches and relocation demand.</p>
+      </div>
+      <div class="card">
+        <strong>International desk</strong>
+        <p class="muted">Seamless coordination for cross‑border purchases and sales with multilingual support.</p>
+      </div>
+    </div>
+  </section>
+​
+  <!-- Contact -->
+  <section id="contact" class="container">
+    <div class="sec-head">
+      <h2>Talk to an advisor</h2>
+      <div class="muted">We aim to respond within one business day.</div>
+    </div>
+    <div class="contact">
+      <form method="post" action="#" onsubmit="event.preventDefault(); alert('Thanks! (Static demo — form not wired)')">
+        <input type="text" name="name" placeholder="Your name" required />
+        <input type="email" name="email" placeholder="Email" required />
+        <input type="tel" name="phone" placeholder="Phone (optional)" />
+        <textarea name="message" placeholder="Tell us what you’re looking for" required></textarea>
+        <label class="disclaimer"><input type="checkbox" required /> I agree to the privacy notice.</label>
+        <button class="btn" type="submit">Send enquiry</button>
+      </form>
+      <div>
+        <div class="card">
+          <strong>Offices</strong>
+          <p class="muted">Dubai • Abu Dhabi • Riyadh (virtual)</p>
+        </div>
+        <div class="card" style="margin-top:12px">
+          <strong>Contact</strong>
+          <p class="muted">+971 4 000 0000<br/>hello@harborandkeys.example</p>
+        </div>
+        <div class="card" style="margin-top:12px">
+          <strong>Hours</strong>
+          <p class="muted">Sun–Thu 9:00–18:00, Fri 9:00–13:00 (Gulf)</p>
+        </div>
+      </div>
+    </div>
+  </section>
+​
+  <footer>
+    <div class="container" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap">
+      <div class="muted">© <span id="year"></span> Harbor & Keys Advisory. All rights reserved.</div>
+      <div style="display:flex; gap:16px">
+        <a class="muted" href="#">Privacy</a>
+        <a class="muted" href="#">Terms</a>
+      </div>
+    </div>
+  </footer>
+​
+  <script>
+    // small niceties
+    document.getElementById('year').textContent = new Date().getFullYear();
+    function openDrawer(){ document.getElementById('drawer').classList.add('open'); }
+    function closeDrawer(e){ e && e.preventDefault(); document.getElementById('drawer').classList.remove('open'); }
+    // smooth anchor scroll for all in‑page links
+    document.querySelectorAll('a[href^="#"]').forEach(a=>{
+      a.addEventListener('click', e=>{
+        const id = a.getAttribute('href').slice(1);
+        const el = document.getElementById(id);
+        if(el){ e.preventDefault(); el.scrollIntoView({behavior:'smooth'}); }
+      })
+    })
+  </script>
+</body>
+</html>
