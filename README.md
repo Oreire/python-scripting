@@ -411,197 +411,178 @@ kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/
 
 Secure Wordfloe
 
-Excellent ✅ — here’s the **fully integrated GitHub Actions workflow** that performs:
+Excellent ✅ — we’ll now **extend your AKS deployment pipeline** to include a **complete security compliance stage** using **SonarQube (SAST)**, **Trivy (SCA)**, and **OWASP ZAP (DAST)** — while still relying **only on Azure secrets stored in GitHub** for all authentication.
 
-1️⃣ **Static Application Security Testing (SAST)** → via **SonarQube**
-2️⃣ **Software Composition Analysis (SCA)** → via **Trivy**
-3️⃣ **Dynamic Application Security Testing (DAST)** → via **OWASP ZAP**
-4️⃣ **Kubernetes Manifest Validation + Deployment to Azure AKS**
-
-It’s designed to follow a **secure-by-design DevSecOps model** using **GitHub OIDC login to Azure** (no credentials in the repo).
+Here’s the **final secure-by-design workflow**, ready for production.
 
 ---
 
-### 🛡️ Full Workflow — Secure CI/CD Deployment to AKS
+## 🚀 Secure DevSecOps Pipeline — ProjectA AKS Deployment
 
-Save this file as:
-`.github/workflows/deploy-projecta-secure.yaml`
+**Filename:** `.github/workflows/deploy-projecta.yaml`
 
 ```yaml
-name: 🔐 Secure Deploy ProjectA to AKS
+name: 🔐 Secure AKS Deployment - ProjectA
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   workflow_dispatch:
 
 permissions:
   contents: read
-  id-token: write
-  security-events: write  # allows Trivy and ZAP reports to upload to GitHub Security tab
 
 jobs:
   deploy:
-    name: Secure Deployment to Azure AKS
+    name: Deploy ProjectA to Azure AKS (with Security Compliance)
     runs-on: ubuntu-latest
 
     env:
       RESOURCE_GROUP: aks-resource-group
       CLUSTER_NAME: projecta-cluster
-      NAMESPACE: projecta
       MANIFEST_FILE: week2-projecta-aks.yaml
-      SONAR_PROJECT_KEY: projecta-aks
-      SONAR_ORG: projecta-org
-      IMAGE_NAME: projectaregistry.azurecr.io/oresky73/week5-server:latest
-      working-directory: ./kube
+      NAMESPACE: projecta
+      IMAGE_NAME: projecta-server
+      IMAGE_TAG: latest
+      ACR_NAME: glanikregistry      # Replace with your Azure Container Registry name
+      SONAR_PROJECT_KEY: projecta
+      SONAR_ORG: glanik
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
     steps:
       # -----------------------------------------------------
       # 1️⃣ Checkout repository
       # -----------------------------------------------------
-      - name: Checkout repository
+      - name: Checkout source code
         uses: actions/checkout@v4
 
       # -----------------------------------------------------
-      # 2️⃣ SonarQube Scan (SAST)
-      # -----------------------------------------------------
-      - name: SonarQube Scan
-        uses: sonarsource/sonarqube-scan-action@v2
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          projectBaseDir: .
-          args: >
-            -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}
-            -Dsonar.organization=${{ env.SONAR_ORG }}
-            -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }}
-            -Dsonar.sources=.
-            -Dsonar.language=python,js,ts,yaml
-            -Dsonar.qualitygate.wait=true
-
-      # -----------------------------------------------------
-      # 3️⃣ Container Image Scan (Trivy - SCA)
-      # -----------------------------------------------------
-      - name: Scan Docker image with Trivy
-        uses: aquasecurity/trivy-action@0.22.0
-        with:
-          image-ref: ${{ env.IMAGE_NAME }}
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
-
-      - name: Upload Trivy results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: trivy-results.sarif
-
-      # -----------------------------------------------------
-      # 4️⃣ Log in to Azure (OIDC)
+      # 2️⃣ Azure Login (using Service Principal JSON secret)
       # -----------------------------------------------------
       - name: Azure Login
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       # -----------------------------------------------------
-      # 5️⃣ Configure kubectl to connect to AKS
+      # 3️⃣ Build & Push Container Image to Azure ACR
       # -----------------------------------------------------
-      - name: Get AKS credentials
+      - name: Log in to Azure Container Registry
+        run: |
+          az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and Push Docker Image
+        run: |
+          IMAGE="${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
+          echo "Building image: $IMAGE"
+          docker build -t $IMAGE .
+          docker push $IMAGE
+
+      # -----------------------------------------------------
+      # 4️⃣ Run Static Application Security Testing (SAST) - SonarQube
+      # -----------------------------------------------------
+      - name: SonarQube Scan (SAST)
+        uses: SonarSource/sonarqube-scan-action@v3
+        with:
+          projectKey: ${{ env.SONAR_PROJECT_KEY }}
+          organization: ${{ env.SONAR_ORG }}
+        env:
+          SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ env.SONAR_HOST_URL }}
+
+      # -----------------------------------------------------
+      # 5️⃣ Run Software Composition Analysis (SCA) - Trivy
+      # -----------------------------------------------------
+      - name: Scan image for vulnerabilities with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          format: 'table'
+          severity: 'HIGH,CRITICAL'
+
+      # -----------------------------------------------------
+      # 6️⃣ Configure kubectl to connect to AKS
+      # -----------------------------------------------------
+      - name: Set AKS context
         uses: azure/aks-set-context@v3
         with:
           resource-group: ${{ env.RESOURCE_GROUP }}
           cluster-name: ${{ env.CLUSTER_NAME }}
 
       # -----------------------------------------------------
-      # 6️⃣ Validate Kubernetes manifests
+      # 7️⃣ Validate and Deploy Kubernetes manifests
       # -----------------------------------------------------
-      - name: Validate Kubernetes manifests
+      - name: Validate manifests
         working-directory: ./kube
         run: |
-          echo "🔍 Validating Kubernetes manifests..."
           kubectl apply --dry-run=client -f "${MANIFEST_FILE}"
 
-      # -----------------------------------------------------
-      # 7️⃣ Apply manifests to AKS
-      # -----------------------------------------------------
-      - name: Apply Kubernetes manifests
+      - name: Apply manifests to AKS
         working-directory: ./kube
         run: |
-          echo "🚀 Deploying ProjectA manifests..."
           kubectl apply -f "${MANIFEST_FILE}" --record
 
       # -----------------------------------------------------
       # 8️⃣ Verify rollout
       # -----------------------------------------------------
-      - name: Verify deployment rollout status
+      - name: Verify Deployment Rollout
         run: |
-          echo "🧠 Checking rollout status..."
           kubectl rollout status deployment/week2-projecta-server -n "${NAMESPACE}" --timeout=120s
 
       # -----------------------------------------------------
-      # 9️⃣ OWASP ZAP Scan (DAST)
+      # 9️⃣ Run Dynamic Application Security Testing (DAST) - OWASP ZAP
       # -----------------------------------------------------
       - name: OWASP ZAP Baseline Scan
-        uses: zaproxy/action-baseline@v0.9.0
+        uses: zaproxy/action-baseline@v0.13.0
         with:
-          target: https://glanik.duckdns.org
-          cmd_options: '-a -r zap-report.html'
-
-      - name: Upload ZAP report artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: zap-report
-          path: zap-report.html
+          target: "http://<YOUR-SERVICE-EXTERNAL-IP>"   # Replace after service exposure
+          cmd_options: "-a"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # -----------------------------------------------------
-      # 🔟 Display service endpoints
+      # 🔟 Show endpoints and summary
       # -----------------------------------------------------
-      - name: Show Service and Ingress info
+      - name: Display External Endpoints
         run: |
-          echo "🌐 Fetching Service and Ingress details..."
           kubectl get svc,ing -n "${NAMESPACE}"
 ```
 
 ---
 
-### 🔑 Required GitHub Secrets
+## 🔑 Required GitHub Secrets
 
-| Secret                  | Description                                                                   |
-| ----------------------- | ----------------------------------------------------------------------------- |
-| `AZURE_CLIENT_ID`       | From Azure AD App Registration (OIDC setup)                                   |
-| `AZURE_TENANT_ID`       | Your Azure tenant ID                                                          |
-| `AZURE_SUBSCRIPTION_ID` | Subscription ID containing the AKS cluster                                    |
-| `SONAR_TOKEN`           | Personal access token for SonarQube                                           |
-| `SONAR_HOST_URL`        | URL of your SonarQube instance (e.g., `https://sonarcloud.io` or self-hosted) |
+| Secret Name         | Description                                                             |
+| ------------------- | ----------------------------------------------------------------------- |
+| `AZURE_CREDENTIALS` | JSON credentials for Azure SP (see below)                               |
+| `SONAR_TOKEN`       | Token from SonarQube project                                            |
+| `SONAR_HOST_URL`    | Your SonarQube server URL (e.g. `https://sonarcloud.io` or self-hosted) |
+| `GITHUB_TOKEN`      | (Auto-created by GitHub; do **not** add manually)                       |
 
----
+**`AZURE_CREDENTIALS` Example:**
 
-### ⚙️ Folder Structure (Recommended)
-
-```
-📦 repo-root/
- ┣ 📂 kube/
- ┃ ┗ 📜 week2-projecta-aks.yaml        # All manifests combined here
- ┣ 📂 .github/
- ┃ ┗ 📂 workflows/
- ┃    ┗ 📜 deploy-projecta-secure.yaml
- ┣ 📜 Dockerfile
- ┣ 📜 README.md
- ┗ 📜 sonar-project.properties
+```json
+{
+  "clientId": "<AZURE_CLIENT_ID>",
+  "clientSecret": "<AZURE_CLIENT_SECRET>",
+  "subscriptionId": "<AZURE_SUBSCRIPTION_ID>",
+  "tenantId": "<AZURE_TENANT_ID>"
+}
 ```
 
 ---
 
-### ✅ What This Workflow Ensures
+## 🧠 Security Flow Summary
 
-| Stage                             | Tool        | Security Layer                            |
-| --------------------------------- | ----------- | ----------------------------------------- |
-| **Code Quality & SAST**           | SonarQube   | Detects code-level vulnerabilities        |
-| **Dependency & Image Scan (SCA)** | Trivy       | Checks base images and libraries          |
-| **Manifest Validation**           | kubectl     | Prevents bad YAML / misconfigurations     |
-| **Cluster Security (OIDC)**       | Azure Login | Passwordless Azure authentication         |
-| **Runtime DAST Scan**             | OWASP ZAP   | Tests live deployment for vulnerabilities |
+| Stage  | Tool      | Security Focus                     | Outcome                           |
+| ------ | --------- | ---------------------------------- | --------------------------------- |
+| Build  | Docker    | Image packaging                    | Secure build environment          |
+| SAST   | SonarQube | Code vulnerabilities & code smells | Prevent insecure code merges      |
+| SCA    | Trivy     | Dependency & container scanning    | Identify CVEs in image layers     |
+| Deploy | kubectl   | Controlled rollout                 | Validated YAML syntax             |
+| DAST   | OWASP ZAP | Runtime vulnerability testing      | Checks live endpoints post-deploy |
 
+---
+
+Would you like me to add an **Azure Key Vault integration** next (so secrets like `SONAR_TOKEN` and `ACR credentials` are fetched automatically at runtime instead of being stored in GitHub)?

@@ -15,9 +15,9 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      RESOURCE_GROUP: aks-resource-group          # Azure Resource Group containing the AKS cluster
-      CLUSTER_NAME: projecta-cluster              # AKS cluster name
-      MANIFEST_FILE: week2-projecta-aks.yaml      # Kubernetes manifest file name (in ./kube)
+      RESOURCE_GROUP: aks-resource-group
+      CLUSTER_NAME: projecta-cluster
+      MANIFEST_FILE: week2-projecta-aks.yaml
       NAMESPACE: projecta
 
     steps:
@@ -28,15 +28,12 @@ jobs:
         uses: actions/checkout@v4
 
       # -----------------------------------------------------
-      # 2️⃣ Log in to Azure using Service Principal secrets
+      # 2️⃣ Azure Login using Service Principal credentials
       # -----------------------------------------------------
-      - name: Azure Login (Client Secret)
+      - name: Azure Login (Service Principal)
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       # -----------------------------------------------------
       # 3️⃣ Configure kubectl to connect to AKS
@@ -48,7 +45,7 @@ jobs:
           cluster-name: ${{ env.CLUSTER_NAME }}
 
       # -----------------------------------------------------
-      # 4️⃣ Validate YAML syntax
+      # 4️⃣ Validate Kubernetes manifests
       # -----------------------------------------------------
       - name: Validate Kubernetes manifests
         working-directory: ./kube
@@ -62,7 +59,7 @@ jobs:
       - name: Apply Kubernetes manifests
         working-directory: ./kube
         run: |
-          echo "🚀 Deploying ProjectA manifests from kube/..."
+          echo "🚀 Deploying ProjectA manifests..."
           kubectl apply -f "${MANIFEST_FILE}" --record
 
       # -----------------------------------------------------
