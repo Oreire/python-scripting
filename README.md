@@ -605,7 +605,3 @@ jobs:
 | **Cluster Security (OIDC)**       | Azure Login | Passwordless Azure authentication         |
 | **Runtime DAST Scan**             | OWASP ZAP   | Tests live deployment for vulnerabilities |
 
----
-
-Would you like me to add a **notification step (e.g., Slack or Teams)** to send deployment + scan summary automatically once all stages pass?
-It’s very useful for DevSecOps observability.
