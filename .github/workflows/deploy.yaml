@@ -1,0 +1,82 @@
+name: 🚀 Deploy ProjectA to AKS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy to Azure AKS
+    runs-on: ubuntu-latest
+
+    env:
+      RESOURCE_GROUP: aks-resource-group          # Azure Resource Group containing the AKS cluster
+      CLUSTER_NAME: projecta-cluster              # AKS cluster name
+      MANIFEST_FILE: week2-projecta-aks.yaml      # Kubernetes manifest file name (in ./kube)
+      NAMESPACE: projecta
+
+    steps:
+      # -----------------------------------------------------
+      # 1️⃣ Checkout repository
+      # -----------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------
+      # 2️⃣ Log in to Azure (OIDC - passwordless)
+      # -----------------------------------------------------
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # -----------------------------------------------------
+      # 3️⃣ Configure kubectl to connect to AKS
+      # -----------------------------------------------------
+      - name: Get AKS credentials
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: ${{ env.RESOURCE_GROUP }}
+          cluster-name: ${{ env.CLUSTER_NAME }}
+
+      # -----------------------------------------------------
+      # 4️⃣ Validate YAML syntax
+      # -----------------------------------------------------
+      - name: Validate Kubernetes manifests
+        working-directory: ./kube
+        run: |
+          echo "🔍 Validating manifests in kube folder..."
+          kubectl apply --dry-run=client -f "${MANIFEST_FILE}"
+
+      # -----------------------------------------------------
+      # 5️⃣ Deploy manifests to AKS
+      # -----------------------------------------------------
+      - name: Apply Kubernetes manifests
+        working-directory: ./kube
+        run: |
+          echo "🚀 Deploying ProjectA manifests from kube/..."
+          kubectl apply -f "${MANIFEST_FILE}" --record
+
+      # -----------------------------------------------------
+      # 6️⃣ Verify deployment rollout status
+      # -----------------------------------------------------
+      - name: Verify rollout status
+        run: |
+          echo "🧠 Checking rollout..."
+          kubectl rollout status deployment/week2-projecta-server -n "${NAMESPACE}" --timeout=120s
+
+      # -----------------------------------------------------
+      # 7️⃣ Display Service and Ingress info
+      # -----------------------------------------------------
+      - name: Show external endpoints
+        run: |
+          echo "🌐 Fetching Service and Ingress details..."
+          kubectl get svc,ing -n "${NAMESPACE}"

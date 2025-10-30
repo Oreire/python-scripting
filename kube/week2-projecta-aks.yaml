@@ -1,8 +1,17 @@
+# ---------------------------------------------------------------------
+# 🏷️ Namespace Definition
+# Creates an isolated environment for all ProjectA resources
+# ---------------------------------------------------------------------
 apiVersion: v1
 kind: Namespace
 metadata:
   name: projecta
 ---
+# ---------------------------------------------------------------------
+# 🚀 Deployment
+# Runs 3 replicas of the NGINX-based application
+# Includes resource limits, liveness & readiness probes for resilience
+# ---------------------------------------------------------------------
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -22,7 +31,7 @@ spec:
     spec:
       containers:
         - name: nginx-container
-          image: projectaregistry.azurecr.io/oresky73/week5-server:latest  # oresky73/week5-server:latest
+          image: projectaregistry.azurecr.io/oresky73/week5-server:latest
           ports:
             - containerPort: 80
           resources:
@@ -32,78 +41,43 @@ spec:
             limits:
               cpu: "250m"
               memory: "256Mi"
-          readinessProbe:
+          readinessProbe:        # Checks app availability before adding pod to service
             httpGet:
               path: /
               port: 80
             initialDelaySeconds: 5
             periodSeconds: 10
-          livenessProbe:
+          livenessProbe:         # Ensures pod restarts if the container becomes unhealthy
             httpGet:
               path: /
               port: 80
             initialDelaySeconds: 15
             periodSeconds: 20
 ---
-# apiVersion: v1
-# kind: Service
-# metadata:
-#   name: week2-projecta-service
-#   namespace: projecta
-#   annotations:
-#     service.beta.kubernetes.io/azure-load-balancer-resource-group: MC_wordpress-rg_projecta-cluster_uksouth
-#     service.beta.kubernetes.io/azure-load-balancer-ip: projecta-static-ip
-# spec:
-#   type: LoadBalancer
-#   selector:
-#     app: week2-projecta-server
-#   ports:
-#     - port: 80
-#       targetPort: 80
-
+# ---------------------------------------------------------------------
+# 🔗 ClusterIP Service
+# Exposes the Deployment internally to the cluster
+# This is referenced by the Ingress resource for external access
+# ---------------------------------------------------------------------
 apiVersion: v1
 kind: Service
 metadata:
   name: projecta-service
   namespace: projecta
 spec:
+  type: ClusterIP
   selector:
     app: week2-projecta-server
   ports:
     - protocol: TCP
       port: 80
       targetPort: 80
-  type: ClusterIP
-
-# ingress resource can be added here later if needed
 ---
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: projecta-ingress
-  namespace: projecta
-  annotations:
-    kubernetes.io/ingress.class: nginx
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-spec:
-  tls:
-    - hosts:
-        - projecta.glanik.com
-      secretName: projecta-tls
-  rules:
-    - host: projecta.glanik.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: projecta-service
-                port:
-                  number: 80
----
-# network policy can be added here later if needed
+# ---------------------------------------------------------------------
+# 🔒 Network Policy
+# Restricts inbound traffic to only come from the ingress-nginx namespace
+# Ensure that your ingress controller namespace is labeled accordingly
+# ---------------------------------------------------------------------
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -121,8 +95,11 @@ spec:
   policyTypes:
     - Ingress
 ---
-# HPA can be added here later if needed
-
+# ---------------------------------------------------------------------
+# ⚖️ Horizontal Pod Autoscaler (HPA)
+# Dynamically scales pods based on CPU utilization
+# Keeps between 3 and 10 replicas depending on workload
+# ---------------------------------------------------------------------
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -143,19 +120,98 @@ spec:
           type: Utilization
           averageUtilization: 70
 ---
-
-# clusterissuer can be added here later if needed
+# ---------------------------------------------------------------------
+# 🔐 Cert-Manager ClusterIssuer
+# Configures Let's Encrypt production endpoint for automated TLS certificates
+# Make sure cert-manager is installed in your cluster
+# ---------------------------------------------------------------------
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
   name: letsencrypt-prod
 spec:
   acme:
-    server: https://acme-v02.api.letsencrypt.org/directory
     email: devops@projecta.com
+    server: https://acme-v02.api.letsencrypt.org/directory
     privateKeySecretRef:
       name: letsencrypt-prod
     solvers:
       - http01:
           ingress:
             class: nginx
+---
+# ---------------------------------------------------------------------
+# 📜 Certificate Resource
+# Requests and stores TLS certificate for glanik.duckdns.org
+# ---------------------------------------------------------------------
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: glanik-cert
+  namespace: projecta
+spec:
+  secretName: glanik-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  commonName: glanik.duckdns.org
+  dnsNames:
+    - glanik.duckdns.org
+  privateKey:
+    rotationPolicy: Always
+---
+# ---------------------------------------------------------------------
+# 🌐 Ingress Resource
+# Routes external HTTPS traffic to the internal Service
+# Adds ModSecurity and OWASP rules for security hardening
+# ---------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: projecta-ingress
+  namespace: projecta
+  annotations:
+    # Ingress Controller Configuration
+    kubernetes.io/ingress.class: nginx
+
+    # Certificate Management
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+
+    # HTTPS Redirects & HSTS for security
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/hsts: "true"
+    nginx.ingress.kubernetes.io/hsts-max-age: "31536000"
+    nginx.ingress.kubernetes.io/hsts-include-subdomains: "true"
+    nginx.ingress.kubernetes.io/hsts-preload: "true"
+
+    # Web Application Firewall (ModSecurity)
+    nginx.ingress.kubernetes.io/enable-modsecurity: "true"
+    nginx.ingress.kubernetes.io/enable-owasp-core-rules: "true"
+
+    # Request Handling & Limits
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+
+    # Basic rate limiting to mitigate abuse
+    nginx.ingress.kubernetes.io/limit-rps: "20"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "5"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - glanik.duckdns.org
+      secretName: glanik-tls
+  rules:
+    - host: glanik.duckdns.org
+      http:
+        paths:
+          - path: /(.+)?
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: projecta-service
+                port:
+                  number: 80

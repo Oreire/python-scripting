@@ -407,3 +407,205 @@ Sources: [Ingress-NGINX GitHub Releases](https://github.com/kubernetes/ingress-n
 
 install cert manager
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.15.0/cert-manager.yaml
+
+
+Secure Wordfloe
+
+Excellent ✅ — here’s the **fully integrated GitHub Actions workflow** that performs:
+
+1️⃣ **Static Application Security Testing (SAST)** → via **SonarQube**
+2️⃣ **Software Composition Analysis (SCA)** → via **Trivy**
+3️⃣ **Dynamic Application Security Testing (DAST)** → via **OWASP ZAP**
+4️⃣ **Kubernetes Manifest Validation + Deployment to Azure AKS**
+
+It’s designed to follow a **secure-by-design DevSecOps model** using **GitHub OIDC login to Azure** (no credentials in the repo).
+
+---
+
+### 🛡️ Full Workflow — Secure CI/CD Deployment to AKS
+
+Save this file as:
+`.github/workflows/deploy-projecta-secure.yaml`
+
+```yaml
+name: 🔐 Secure Deploy ProjectA to AKS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  security-events: write  # allows Trivy and ZAP reports to upload to GitHub Security tab
+
+jobs:
+  deploy:
+    name: Secure Deployment to Azure AKS
+    runs-on: ubuntu-latest
+
+    env:
+      RESOURCE_GROUP: aks-resource-group
+      CLUSTER_NAME: projecta-cluster
+      NAMESPACE: projecta
+      MANIFEST_FILE: week2-projecta-aks.yaml
+      SONAR_PROJECT_KEY: projecta-aks
+      SONAR_ORG: projecta-org
+      IMAGE_NAME: projectaregistry.azurecr.io/oresky73/week5-server:latest
+      working-directory: ./kube
+
+    steps:
+      # -----------------------------------------------------
+      # 1️⃣ Checkout repository
+      # -----------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------
+      # 2️⃣ SonarQube Scan (SAST)
+      # -----------------------------------------------------
+      - name: SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          projectBaseDir: .
+          args: >
+            -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}
+            -Dsonar.organization=${{ env.SONAR_ORG }}
+            -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }}
+            -Dsonar.sources=.
+            -Dsonar.language=python,js,ts,yaml
+            -Dsonar.qualitygate.wait=true
+
+      # -----------------------------------------------------
+      # 3️⃣ Container Image Scan (Trivy - SCA)
+      # -----------------------------------------------------
+      - name: Scan Docker image with Trivy
+        uses: aquasecurity/trivy-action@0.22.0
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+
+      # -----------------------------------------------------
+      # 4️⃣ Log in to Azure (OIDC)
+      # -----------------------------------------------------
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # -----------------------------------------------------
+      # 5️⃣ Configure kubectl to connect to AKS
+      # -----------------------------------------------------
+      - name: Get AKS credentials
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: ${{ env.RESOURCE_GROUP }}
+          cluster-name: ${{ env.CLUSTER_NAME }}
+
+      # -----------------------------------------------------
+      # 6️⃣ Validate Kubernetes manifests
+      # -----------------------------------------------------
+      - name: Validate Kubernetes manifests
+        working-directory: ./kube
+        run: |
+          echo "🔍 Validating Kubernetes manifests..."
+          kubectl apply --dry-run=client -f "${MANIFEST_FILE}"
+
+      # -----------------------------------------------------
+      # 7️⃣ Apply manifests to AKS
+      # -----------------------------------------------------
+      - name: Apply Kubernetes manifests
+        working-directory: ./kube
+        run: |
+          echo "🚀 Deploying ProjectA manifests..."
+          kubectl apply -f "${MANIFEST_FILE}" --record
+
+      # -----------------------------------------------------
+      # 8️⃣ Verify rollout
+      # -----------------------------------------------------
+      - name: Verify deployment rollout status
+        run: |
+          echo "🧠 Checking rollout status..."
+          kubectl rollout status deployment/week2-projecta-server -n "${NAMESPACE}" --timeout=120s
+
+      # -----------------------------------------------------
+      # 9️⃣ OWASP ZAP Scan (DAST)
+      # -----------------------------------------------------
+      - name: OWASP ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.9.0
+        with:
+          target: https://glanik.duckdns.org
+          cmd_options: '-a -r zap-report.html'
+
+      - name: Upload ZAP report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report
+          path: zap-report.html
+
+      # -----------------------------------------------------
+      # 🔟 Display service endpoints
+      # -----------------------------------------------------
+      - name: Show Service and Ingress info
+        run: |
+          echo "🌐 Fetching Service and Ingress details..."
+          kubectl get svc,ing -n "${NAMESPACE}"
+```
+
+---
+
+### 🔑 Required GitHub Secrets
+
+| Secret                  | Description                                                                   |
+| ----------------------- | ----------------------------------------------------------------------------- |
+| `AZURE_CLIENT_ID`       | From Azure AD App Registration (OIDC setup)                                   |
+| `AZURE_TENANT_ID`       | Your Azure tenant ID                                                          |
+| `AZURE_SUBSCRIPTION_ID` | Subscription ID containing the AKS cluster                                    |
+| `SONAR_TOKEN`           | Personal access token for SonarQube                                           |
+| `SONAR_HOST_URL`        | URL of your SonarQube instance (e.g., `https://sonarcloud.io` or self-hosted) |
+
+---
+
+### ⚙️ Folder Structure (Recommended)
+
+```
+📦 repo-root/
+ ┣ 📂 kube/
+ ┃ ┗ 📜 week2-projecta-aks.yaml        # All manifests combined here
+ ┣ 📂 .github/
+ ┃ ┗ 📂 workflows/
+ ┃    ┗ 📜 deploy-projecta-secure.yaml
+ ┣ 📜 Dockerfile
+ ┣ 📜 README.md
+ ┗ 📜 sonar-project.properties
+```
+
+---
+
+### ✅ What This Workflow Ensures
+
+| Stage                             | Tool        | Security Layer                            |
+| --------------------------------- | ----------- | ----------------------------------------- |
+| **Code Quality & SAST**           | SonarQube   | Detects code-level vulnerabilities        |
+| **Dependency & Image Scan (SCA)** | Trivy       | Checks base images and libraries          |
+| **Manifest Validation**           | kubectl     | Prevents bad YAML / misconfigurations     |
+| **Cluster Security (OIDC)**       | Azure Login | Passwordless Azure authentication         |
+| **Runtime DAST Scan**             | OWASP ZAP   | Tests live deployment for vulnerabilities |
+
+---
+
+Would you like me to add a **notification step (e.g., Slack or Teams)** to send deployment + scan summary automatically once all stages pass?
+It’s very useful for DevSecOps observability.
