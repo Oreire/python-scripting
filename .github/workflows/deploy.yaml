@@ -15,9 +15,9 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      RESOURCE_GROUP: aks-resource-group
-      CLUSTER_NAME: projecta-cluster
-      MANIFEST_FILE: week2-projecta-aks.yaml
+      RESOURCE_GROUP: aks-resource-group        # Azure Resource Group containing the AKS cluster
+      CLUSTER_NAME: projecta-cluster            # AKS cluster name
+      MANIFEST_FILE: week2-projecta-aks.yaml    # Kubernetes manifest file path (inside ./kube)
       NAMESPACE: projecta
 
     steps:
