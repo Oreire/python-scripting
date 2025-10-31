@@ -411,172 +411,118 @@ kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/
 
 Secure Wordfloe
 
-Excellent ✅ — we’ll now **extend your AKS deployment pipeline** to include a **complete security compliance stage** using **SonarQube (SAST)**, **Trivy (SCA)**, and **OWASP ZAP (DAST)** — while still relying **only on Azure secrets stored in GitHub** for all authentication.
-
-Here’s the **final secure-by-design workflow**, ready for production.
-
+# ---------------------------------------------------------------------
+# 🏷️ Namespace Definition
+# ---------------------------------------------------------------------
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: projecta
 ---
-
-## 🚀 Secure DevSecOps Pipeline — ProjectA AKS Deployment
-
-**Filename:** `.github/workflows/deploy-projecta.yaml`
-
-```yaml
-name: 🔐 Secure AKS Deployment - ProjectA
-
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
-
-permissions:
-  contents: read
-
-jobs:
-  deploy:
-    name: Deploy ProjectA to Azure AKS (with Security Compliance)
-    runs-on: ubuntu-latest
-
-    env:
-      RESOURCE_GROUP: aks-resource-group
-      CLUSTER_NAME: projecta-cluster
-      MANIFEST_FILE: week2-projecta-aks.yaml
-      NAMESPACE: projecta
-      IMAGE_NAME: projecta-server
-      IMAGE_TAG: latest
-      ACR_NAME: glanikregistry      # Replace with your Azure Container Registry name
-      SONAR_PROJECT_KEY: projecta
-      SONAR_ORG: glanik
-      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
-    steps:
-      # -----------------------------------------------------
-      # 1️⃣ Checkout repository
-      # -----------------------------------------------------
-      - name: Checkout source code
-        uses: actions/checkout@v4
-
-      # -----------------------------------------------------
-      # 2️⃣ Azure Login (using Service Principal JSON secret)
-      # -----------------------------------------------------
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      # -----------------------------------------------------
-      # 3️⃣ Build & Push Container Image to Azure ACR
-      # -----------------------------------------------------
-      - name: Log in to Azure Container Registry
-        run: |
-          az acr login --name ${{ env.ACR_NAME }}
-
-      - name: Build and Push Docker Image
-        run: |
-          IMAGE="${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
-          echo "Building image: $IMAGE"
-          docker build -t $IMAGE .
-          docker push $IMAGE
-
-      # -----------------------------------------------------
-      # 4️⃣ Run Static Application Security Testing (SAST) - SonarQube
-      # -----------------------------------------------------
-      - name: SonarQube Scan (SAST)
-        uses: SonarSource/sonarqube-scan-action@v3
-        with:
-          projectKey: ${{ env.SONAR_PROJECT_KEY }}
-          organization: ${{ env.SONAR_ORG }}
-        env:
-          SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ env.SONAR_HOST_URL }}
-
-      # -----------------------------------------------------
-      # 5️⃣ Run Software Composition Analysis (SCA) - Trivy
-      # -----------------------------------------------------
-      - name: Scan image for vulnerabilities with Trivy
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-          format: 'table'
-          severity: 'HIGH,CRITICAL'
-
-      # -----------------------------------------------------
-      # 6️⃣ Configure kubectl to connect to AKS
-      # -----------------------------------------------------
-      - name: Set AKS context
-        uses: azure/aks-set-context@v3
-        with:
-          resource-group: ${{ env.RESOURCE_GROUP }}
-          cluster-name: ${{ env.CLUSTER_NAME }}
-
-      # -----------------------------------------------------
-      # 7️⃣ Validate and Deploy Kubernetes manifests
-      # -----------------------------------------------------
-      - name: Validate manifests
-        working-directory: ./kube
-        run: |
-          kubectl apply --dry-run=client -f "${MANIFEST_FILE}"
-
-      - name: Apply manifests to AKS
-        working-directory: ./kube
-        run: |
-          kubectl apply -f "${MANIFEST_FILE}" --record
-
-      # -----------------------------------------------------
-      # 8️⃣ Verify rollout
-      # -----------------------------------------------------
-      - name: Verify Deployment Rollout
-        run: |
-          kubectl rollout status deployment/week2-projecta-server -n "${NAMESPACE}" --timeout=120s
-
-      # -----------------------------------------------------
-      # 9️⃣ Run Dynamic Application Security Testing (DAST) - OWASP ZAP
-      # -----------------------------------------------------
-      - name: OWASP ZAP Baseline Scan
-        uses: zaproxy/action-baseline@v0.13.0
-        with:
-          target: "http://<YOUR-SERVICE-EXTERNAL-IP>"   # Replace after service exposure
-          cmd_options: "-a"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # -----------------------------------------------------
-      # 🔟 Show endpoints and summary
-      # -----------------------------------------------------
-      - name: Display External Endpoints
-        run: |
-          kubectl get svc,ing -n "${NAMESPACE}"
-```
-
+# ---------------------------------------------------------------------
+# 🚀 Deployment
+# ---------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: week2-projecta-server
+  namespace: projecta
+  labels:
+    app: week2-projecta-server
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: week2-projecta-server
+  template:
+    metadata:
+      labels:
+        app: week2-projecta-server
+    spec:
+      containers:
+        - name: nginx-container
+          image: projectaregistry.azurecr.io/oresky73/week5-server:latest
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 20
 ---
-
-## 🔑 Required GitHub Secrets
-
-| Secret Name         | Description                                                             |
-| ------------------- | ----------------------------------------------------------------------- |
-| `AZURE_CREDENTIALS` | JSON credentials for Azure SP (see below)                               |
-| `SONAR_TOKEN`       | Token from SonarQube project                                            |
-| `SONAR_HOST_URL`    | Your SonarQube server URL (e.g. `https://sonarcloud.io` or self-hosted) |
-| `GITHUB_TOKEN`      | (Auto-created by GitHub; do **not** add manually)                       |
-
-**`AZURE_CREDENTIALS`:**
-
-```json
-{
-  "clientId": "<AZURE_CLIENT_ID>",
-  "clientSecret": "<AZURE_CLIENT_SECRET>",
-  "subscriptionId": "<AZURE_SUBSCRIPTION_ID>",
-  "tenantId": "<AZURE_TENANT_ID>"
-}
-
-## 🧠 Security Flow Overview
-
-| Stage  | Tool      | Security Focus                     | Outcome                           |
-| ------ | --------- | ---------------------------------- | --------------------------------- |
-| Build  | Docker    | Image packaging                    | Secure build environment          |
-| SAST   | SonarQube | Code vulnerabilities & code smells | Prevent insecure code merges      |
-| SCA    | Trivy     | Dependency & container scanning    | Identify CVEs in image layers     |
-| Deploy | kubectl   | Controlled rollout                 | Validated YAML syntax             |
-| DAST   | OWASP ZAP | Runtime vulnerability testing      | Checks live endpoints post-deploy |
-
+# ---------------------------------------------------------------------
+# 🔗 LoadBalancer Service
+# Exposes the Deployment externally for testing
+# ---------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: projecta-service
+  namespace: projecta
+spec:
+  type: LoadBalancer
+  selector:
+    app: week2-projecta-server
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+---
+# ---------------------------------------------------------------------
+# 🔒 Network Policy
+# Restricts inbound traffic to only come from the ingress-nginx namespace
+# ---------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ingress-policy
+  namespace: projecta
+spec:
+  podSelector:
+    matchLabels:
+      app: week2-projecta-server
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+  policyTypes:
+    - Ingress
+---
+# ---------------------------------------------------------------------
+# ⚖️ Horizontal Pod Autoscaler (HPA)
+# Dynamically scales pods based on CPU utilization
+# ---------------------------------------------------------------------
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: projecta-hpa
+  namespace: projecta
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: week2-projecta-server
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
