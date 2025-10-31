@@ -560,7 +560,7 @@ jobs:
 | `SONAR_HOST_URL`    | Your SonarQube server URL (e.g. `https://sonarcloud.io` or self-hosted) |
 | `GITHUB_TOKEN`      | (Auto-created by GitHub; do **not** add manually)                       |
 
-**`AZURE_CREDENTIALS` Example:**
+**`AZURE_CREDENTIALS`:**
 
 ```json
 {
