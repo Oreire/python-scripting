@@ -31,7 +31,7 @@ spec:
     spec:
       containers:
         - name: nginx-container
-          image: oresky73/week5-server:latest # projectaregistry.azurecr.io/oresky73/week5-server:latest
+          image: projectaregistry.azurecr.io/oresky73/week5-server:latest
           ports:
             - containerPort: 80
           resources:
