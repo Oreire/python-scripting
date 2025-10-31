@@ -570,7 +570,6 @@ jobs:
   "tenantId": "<AZURE_TENANT_ID>"
 }
 
-
 ## 🧠 Security Flow Overview
 
 | Stage  | Tool      | Security Focus                     | Outcome                           |
