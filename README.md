@@ -571,7 +571,7 @@ jobs:
 }
 
 
-## 🧠 Security Flow Summary
+## 🧠 Security Flow Overview
 
 | Stage  | Tool      | Security Focus                     | Outcome                           |
 | ------ | --------- | ---------------------------------- | --------------------------------- |
